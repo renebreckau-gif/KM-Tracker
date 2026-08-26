@@ -25,38 +25,36 @@ struct KilometerLogApp: App {
 
     var body: some Scene {
         WindowGroup {
-            KilometerLogWurzelAnsicht()
+            ContentView()
         }
         .modelContainer(modelContainer)
     }
 }
 
-/// Vorläufiger Einstiegsbildschirm für dieses Grundgerüst.
-///
-/// Dieser Prompt liefert bewusst nur Datenmodelle, Persistenz und den
-/// Fahrtkostenrechner – die eigentlichen Fach-Screens (Fahrtenliste,
-/// Fahrzeugverwaltung, Aufzeichnung, Auswertung) folgen in einem separaten
-/// UI-Ausbauschritt. Diese Ansicht ist ein klar gekennzeichneter Platzhalter,
-/// kein Feature, und verwendet bereits ausschließlich Standard-Komponenten
-/// (`NavigationStack`, `List`) sowie semantische Textstile gemäß den
-/// Apple-HIG-Vorgaben.
-struct KilometerLogWurzelAnsicht: View {
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("Datenmodell, Persistenz und Fahrtkostenrechner sind eingerichtet.")
-                        .font(.body)
-                    Text(FahrtkostenRechner.pendlerpauschaleHinweis)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("KilometerLog")
-                        .font(.headline)
-                }
-            }
-            .navigationTitle("KilometerLog")
-            .accessibilityHint("Platzhalter-Startbildschirm, die eigentlichen Fahrtenbuch-Funktionen folgen in einem späteren Ausbauschritt.")
-        }
+// MARK: - Gemeinsame Formatierungshilfen
+
+/// Die App zeigt Beträge und Daten unabhängig von der Geräte-Sprache
+/// einheitlich im deutschen Format an (Komma als Dezimaltrennzeichen,
+/// „€“-Suffix, deutsche Datumsreihenfolge).
+extension Locale {
+    static let deutsch = Locale(identifier: "de_DE")
+}
+
+extension Double {
+    /// Formatiert einen Betrag als deutschen Euro-Betrag, z. B. „30,00 €“.
+    var alsEuroBetrag: String {
+        formatted(.currency(code: "EUR").locale(.deutsch))
+    }
+
+    /// Formatiert einen Kilometerwert mit zwei Nachkommastellen, z. B. „12,30“.
+    var alsKilometerWert: String {
+        formatted(.number.locale(.deutsch).precision(.fractionLength(2)))
+    }
+}
+
+extension Date {
+    /// Kurzes deutsches Datum, z. B. „26.08.2026“.
+    var alsKurzesDatum: String {
+        formatted(.dateTime.day().month().year().locale(.deutsch))
     }
 }
