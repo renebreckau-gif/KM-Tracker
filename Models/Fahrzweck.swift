@@ -34,4 +34,21 @@ enum Fahrzweck: String, Codable, CaseIterable, Identifiable {
             return "Sonstiges"
         }
     }
+
+    /// SF Symbol für die Aufschlüsselung „Nach Zweck“ in `UebersichtView`.
+    /// Reine Computed Property ohne Persistenz-Auswirkung.
+    var systemImage: String {
+        switch self {
+        case .dienstreise:
+            return "suitcase.rolling.fill"
+        case .kunde:
+            return "person.fill"
+        case .buero:
+            return "building.2.fill"
+        case .messe:
+            return "storefront.fill"
+        case .sonstiges:
+            return "ellipsis.circle.fill"
+        }
+    }
 }
