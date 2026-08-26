@@ -1,30 +1,51 @@
 import SwiftUI
 import SwiftData
 
-/// Formular zur manuellen Erfassung einer bereits abgeschlossenen Fahrt.
+/// Formular zur Erfassung einer Fahrt – entweder komplett manuell, oder als
+/// Bestätigung nach einer beendeten GPS-Aufzeichnung (`vorbefuellung`).
 ///
 /// `km` wird ausschließlich aus `kmStandEnde - kmStandStart` berechnet und
 /// nur zur Anzeige eingeblendet – es gibt kein eigenes Eingabefeld dafür.
-/// Nach erfolgreichem Speichern wird die Fahrt sofort über `sperren()`
-/// gesperrt, wie von `Fahrt` vorgeschrieben.
+/// Auch nach einer GPS-Aufzeichnung sind die Tachostände Pflicht: GPS liefert
+/// nur eine Streckenschätzung (`vorbefuellung.distanzKm`) als Kontext, nie
+/// den amtlichen Tachostand selbst. Nach erfolgreichem Speichern wird die
+/// Fahrt sofort über `sperren()` gesperrt, wie von `Fahrt` vorgeschrieben.
 struct ManuelleFahrtView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \Fahrzeug.name) private var fahrzeuge: [Fahrzeug]
 
+    /// `nil` bei rein manueller Erfassung. Andernfalls das Ergebnis einer
+    /// gerade beendeten `TrackingManager`-Aufzeichnung, das Zeitraum und
+    /// Adressen vorbefüllt und die Streckenschätzung als Hinweis anzeigt.
+    let vorbefuellung: TrackingErgebnis?
+
     @State private var fahrzeugId: UUID?
-    @State private var startDatum = Date.now
-    @State private var endDatum = Date.now
-    @State private var startAdresse = ""
-    @State private var zielAdresse = ""
+    @State private var startDatum: Date
+    @State private var endDatum: Date
+    @State private var startAdresse: String
+    @State private var zielAdresse: String
     @State private var kmStandStartText = ""
     @State private var kmStandEndeText = ""
     @State private var zweck: Fahrzweck = .kunde
     @State private var zweckKonkret = ""
     @State private var geschaeftspartner = ""
-    @State private var notizen = ""
+    @State private var notizen: String
     @State private var fehlermeldung: String?
+
+    init(vorbefuellung: TrackingErgebnis? = nil) {
+        self.vorbefuellung = vorbefuellung
+        _startDatum = State(initialValue: vorbefuellung?.startZeitpunkt ?? .now)
+        _endDatum = State(initialValue: vorbefuellung?.endZeitpunkt ?? .now)
+        _startAdresse = State(initialValue: vorbefuellung?.startAdresse ?? "")
+        _zielAdresse = State(initialValue: vorbefuellung?.zielAdresse ?? "")
+        if vorbefuellung?.gpsSignalGingVerloren == true {
+            _notizen = State(initialValue: "GPS-Signal während der Aufzeichnung zeitweise verloren; Kilometerstände nach Fahrtende manuell bestätigt.")
+        } else {
+            _notizen = State(initialValue: "")
+        }
+    }
 
     /// Wandelt eine Kilometerstand-Eingabe in eine `Double` um. Akzeptiert
     /// sowohl Punkt als auch deutsches Komma als Dezimaltrennzeichen.
@@ -66,14 +87,35 @@ struct ManuelleFahrtView: View {
                     }
 
                     Section("Strecke") {
+                        if let vorbefuellung {
+                            Text("GPS hat ca. \(vorbefuellung.distanzKm.alsKilometerWert) km gemessen. Bitte trage die tatsächlichen Tachostände ein.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                         TextField("Startadresse (Straße, PLZ, Ort)", text: $startAdresse)
                         TextField("Zieladresse (Straße, PLZ, Ort)", text: $zielAdresse)
                         TextField("Kilometerstand Start", text: $kmStandStartText)
                             .keyboardType(.decimalPad)
+                            .onChange(of: kmStandStartText) { _, neuerWert in
+                                guard let vorbefuellung, kmStandEndeText.isEmpty,
+                                      let kmStandStart = geparsterKilometerstand(neuerWert) else { return }
+                                kmStandEndeText = (kmStandStart + vorbefuellung.distanzKm).alsKilometerWert
+                            }
                         TextField("Kilometerstand Ende", text: $kmStandEndeText)
                             .keyboardType(.decimalPad)
                         if let berechneteKm {
                             LabeledContent("Gefahrene Strecke", value: "\(berechneteKm.alsKilometerWert) km")
+                        }
+                    }
+
+                    if vorbefuellung?.gpsSignalGingVerloren == true {
+                        Section {
+                            Label(
+                                "Das GPS-Signal wurde während der Aufzeichnung zeitweise verloren. Bitte die Kilometerstände sorgfältig prüfen – ein entsprechender Hinweis wurde bereits in die Notizen übernommen.",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
                         }
                     }
 
@@ -100,7 +142,7 @@ struct ManuelleFahrtView: View {
                     }
                 }
             }
-            .navigationTitle("Neue Fahrt")
+            .navigationTitle(vorbefuellung == nil ? "Neue Fahrt" : "Fahrt bestätigen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -144,7 +186,7 @@ struct ManuelleFahrtView: View {
                 geschaeftspartner: geschaeftspartner,
                 fahrzeugId: fahrzeugId,
                 notizen: notizen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notizen,
-                isManual: true
+                isManual: vorbefuellung == nil
             )
             modelContext.insert(fahrt)
             fahrt.sperren()

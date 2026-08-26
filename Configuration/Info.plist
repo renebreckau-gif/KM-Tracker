@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Dies ist KEIN vollständiges App-Info.plist, sondern genau die Einträge,
+  die für das GPS-Tracking (Utilities/TrackingManager.swift) zusätzlich
+  benötigt werden. Sobald das echte Xcode-Projekt existiert, müssen diese
+  Schlüssel in dessen Info.plist übernommen werden:
+
+  - Manuell in Xcode: Target -> Info -> Custom iOS Target Properties -> "+"
+    -> die drei Schlüssel unten per Hand anlegen (die deutschen Texte als
+    Wert einfügen).
+  - Per XcodeGen (project.yml): unter "info.properties" dieselben drei
+    Schlüssel eintragen, "UIBackgroundModes" als Array mit "location".
+
+  Zusätzlich MUSS unter Target -> Signing & Capabilities -> "+ Capability"
+  -> "Background Modes" die Checkbox "Location updates" aktiviert werden
+  (das setzt effektiv denselben UIBackgroundModes-Eintrag, ist aber
+  zusätzlich für die Codesigning-Entitlements erforderlich). Ohne diese
+  Capability crasht die App beim Setzen von
+  `CLLocationManager.allowsBackgroundLocationUpdates = true` zur Laufzeit.
+
+  Es werden bewusst nur die für iOS 17+ tatsächlich benötigten Schlüssel
+  aufgeführt (kein veraltetes NSLocationAlwaysUsageDescription aus der
+  iOS-10-Ära).
+-->
+<plist version="1.0">
+<dict>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>KilometerLog benötigt deinen Standort, um während einer von dir gestarteten Fahrt automatisch die gefahrene Strecke zu ermitteln. Der Standort wird ausschließlich während einer aktiven Aufzeichnung verwendet – nie im Hintergrund außerhalb einer Fahrt.</string>
+
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Damit deine Fahrt auch bei gesperrtem Bildschirm oder beim Wechsel zu einer anderen App zuverlässig weiter aufgezeichnet wird, benötigt KilometerLog zusätzlich die Berechtigung „Immer“. Auch damit wird dein Standort ausschließlich während einer von dir gestarteten Fahrt verwendet, niemals im Hintergrund außerhalb einer aktiven Aufzeichnung.</string>
+
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+    </array>
+</dict>
+</plist>
