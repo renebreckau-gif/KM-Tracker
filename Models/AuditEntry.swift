@@ -40,3 +40,13 @@ final class AuditEntry {
         self.grund = grund
     }
 }
+
+extension AuditEntry {
+    /// Einzeilige, für Barrierefreiheit (VoiceOver) und einen künftigen
+    /// Export geeignete Zusammenfassung dieses Eintrags. Reine
+    /// Computed-Property auf bestehenden Feldern – kein neues gespeichertes
+    /// Attribut, daher ohne Auswirkung auf das Schema.
+    var zusammenfassung: String {
+        "\(zeitstempel.alsKurzesDatum) – \(feldName): „\(alterWert)“ zu „\(neuerWert)“ geändert. Grund: \(grund)"
+    }
+}

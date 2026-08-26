@@ -15,7 +15,7 @@ struct FahrtDetailView: View {
         let fahrtId = fahrt.id
         _verlauf = Query(
             filter: #Predicate<AuditEntry> { $0.fahrtId == fahrtId },
-            sort: [SortDescriptor(\AuditEntry.zeitstempel, order: .reverse)]
+            sort: [SortDescriptor(\AuditEntry.zeitstempel, order: .forward)]
         )
     }
 
@@ -72,25 +72,16 @@ struct FahrtDetailView: View {
 
             Section("Änderungsverlauf") {
                 if verlauf.isEmpty {
-                    Text("Keine nachträglichen Änderungen.")
+                    Text("Noch keine Änderungen protokolliert")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(verlauf) { eintrag in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(eintrag.feldName)
-                                .font(.subheadline)
-                            Text("„\(eintrag.alterWert)“ → „\(eintrag.neuerWert)“")
-                                .font(.body)
-                            Text(eintrag.grund)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            Text(eintrag.zeitstempel.alsKurzesDatum)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .accessibilityElement(children: .combine)
+                    NavigationLink {
+                        AenderungsverlaufView(fahrt: fahrt)
+                    } label: {
+                        LabeledContent("Änderungen", value: "\(verlauf.count)")
                     }
+                    .accessibilityHint("Öffnet den vollständigen, chronologischen Änderungsverlauf dieser Fahrt mit Zeitstempel und Begründung je Eintrag.")
                 }
             }
         }

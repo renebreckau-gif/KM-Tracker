@@ -210,6 +210,18 @@ final class Fahrt {
         isLocked = true
     }
 
+    /// Berechnet `km` neu aus den aktuellen Tachoständen.
+    ///
+    /// Da `km` einen `private(set)`-Setter hat, ist dies der einzige Weg für
+    /// Code außerhalb dieser Datei (konkret: `AuditManager`, siehe
+    /// `Utilities/AuditManager.swift`), `km` nach einer nachträglichen
+    /// Tachostand-Änderung an einer gesperrten Fahrt konsistent zu halten.
+    /// Reine Verhaltensergänzung ohne neue gespeicherte Eigenschaft – keine
+    /// Schema-Migration erforderlich.
+    func kmNeuBerechnen() {
+        km = kmStandEnde - kmStandStart
+    }
+
     /// Einziger erlaubter Änderungsweg für eine bereits gesperrte Fahrt.
     ///
     /// Dieser Methode ist ausschließlich für die Nutzung durch einen
