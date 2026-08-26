@@ -9,6 +9,11 @@ import Observation
 /// auf den ebenfalls vorläufigen `PaywallView`-Bildschirm, statt heimlich
 /// alles freizuschalten.
 ///
+/// Produktentscheidung für diesen Stand: PDF- und CSV-Export sind Teil der
+/// steuerlichen Grundpflicht (ordnungsgemäßes Fahrtenbuch) und bleiben
+/// deshalb frei nutzbar. Nur der DATEV-Export – eine Kanzlei-/Buchhaltungs-
+/// Zusatzfunktion – ist gemäß Aufgabenstellung Pro-geschützt.
+///
 /// In einer echten Umsetzung würde eine einzelne, geteilte Instanz app-weit
 /// über `.environment(_:)` injiziert statt pro View neu erzeugt zu werden.
 @Observable
@@ -16,7 +21,8 @@ final class ProManager {
     /// PLATZHALTER – durch den echten Kauf-/Abo-Status ersetzen.
     var istPro: Bool = false
 
-    func pruefeExportBerechtigung() -> Bool {
+    /// Gilt aktuell ausschließlich für den DATEV-Export.
+    func pruefeDATEVBerechtigung() -> Bool {
         istPro
     }
 }

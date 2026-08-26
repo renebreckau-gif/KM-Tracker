@@ -4,24 +4,42 @@ import SwiftUI
 
 /// Kennzahlen-Übersicht: Kopfbereich mit rechtlichem Einordnungshinweis,
 /// Jahres- und Monatswerte, Aufschlüsselung nach Zweck/Fahrzeug, ein
-/// Balkendiagramm der letzten sechs Monate sowie der (noch als Platzhalter
-/// verdrahtete) Datenexport.
+/// Balkendiagramm der letzten sechs Monate, der PDF-/CSV-/DATEV-Export
+/// sowie der Status des automatischen monatlichen Backups.
 ///
 /// Alle Beträge werden ausschließlich über `StatistikBerechnung` ermittelt,
 /// die ihrerseits ausschließlich `FahrtkostenRechner.berechne(...)`
-/// verwendet – diese Ansicht kennt selbst keine Kilometersätze.
+/// verwendet – diese Ansicht kennt selbst keine Kilometersätze. Die
+/// eigentliche Dateierzeugung läuft ausschließlich über `FahrtExporter`
+/// und dessen `CSVExporter`/`PDFExporter`/`DATEVExporter` – diese Ansicht
+/// enthält keine eigene Exportlogik.
 struct UebersichtView: View {
     @Query private var fahrten: [Fahrt]
     @Query(sort: \Fahrzeug.name) private var fahrzeuge: [Fahrzeug]
+    @Query private var auditEntries: [AuditEntry]
 
     @State private var ausgewaehltesJahr = Calendar.current.component(.year, from: .now)
     @State private var proManager = ProManager()
+    @State private var monatsBackupManager = MonatsBackupManager()
     @State private var zeigePaywall = false
     @State private var zeigeExportFehler = false
     @State private var exportFehlerText = ""
+    @State private var exportDatei: ExportDatei?
+    @State private var backupDatei: ExportDatei?
 
     private enum ExportFormat {
         case pdf, csv, datev
+    }
+
+    /// Kleiner Wrapper, damit `URL` für `sheet(item:)` `Identifiable` ist.
+    private struct ExportDatei: Identifiable {
+        let url: URL
+        var id: URL { url }
+    }
+
+    private var jahresAuditEntries: [AuditEntry] {
+        let ids = Set(jahresFahrten.map(\.id))
+        return auditEntries.filter { ids.contains($0.fahrtId) }
     }
 
     private var verfuegbareJahre: [Int] {
@@ -63,11 +81,27 @@ struct UebersichtView: View {
             nachFahrzeugSection
             diagrammSection
             exportSection
+            backupSection
             hinweisSection
         }
         .navigationTitle("Übersicht")
+        .task {
+            monatsBackupManager.pruefeUndErstelleBackupFallsNoetig(
+                fahrten: fahrten,
+                fahrzeuge: fahrzeuge,
+                auditEntries: auditEntries
+            )
+        }
         .sheet(isPresented: $zeigePaywall) {
             PaywallView()
+        }
+        .sheet(item: $exportDatei) { datei in
+            ShareSheet(dateiURLs: [datei.url])
+        }
+        .sheet(item: $backupDatei) { datei in
+            ShareSheet(dateiURLs: [datei.url]) {
+                monatsBackupManager.markiereAlsGeteilt()
+            }
         }
         .alert("Export nicht möglich", isPresented: $zeigeExportFehler) {
             Button("OK", role: .cancel) {}
@@ -219,6 +253,12 @@ struct UebersichtView: View {
 
     // MARK: - Export
 
+    /// PDF und CSV sind Teil der steuerlichen Grundpflicht (ordnungsgemäßes
+    /// Fahrtenbuch) und bleiben frei nutzbar. Nur der DATEV-Export prüft
+    /// vorher über `ProManager`, ob er freigeschaltet ist, und zeigt
+    /// andernfalls `PaywallView`. Die eigentliche Erzeugung der Datei läuft
+    /// in jedem Fall ausschließlich über `FahrtExporter` – hier findet
+    /// keine eigene Exportlogik statt.
     private var exportSection: some View {
         Section("Exportieren") {
             Button {
@@ -227,7 +267,7 @@ struct UebersichtView: View {
                 Label("PDF exportieren", systemImage: "doc.richtext")
             }
             .accessibilityLabel("PDF exportieren")
-            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als PDF-Dokument.")
+            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als PDF-Dokument und öffnet das Teilen-Menü.")
 
             Button {
                 exportStarten(.csv)
@@ -235,7 +275,7 @@ struct UebersichtView: View {
                 Label("CSV exportieren", systemImage: "doc.text")
             }
             .accessibilityLabel("CSV exportieren")
-            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als CSV-Datei.")
+            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als CSV-Datei und öffnet das Teilen-Menü.")
 
             Button {
                 exportStarten(.datev)
@@ -243,31 +283,71 @@ struct UebersichtView: View {
                 Label("DATEV exportieren", systemImage: "doc.badge.gearshape")
             }
             .accessibilityLabel("DATEV exportieren")
-            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres im DATEV-Format.")
+            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres im DATEV-Format. Teil von KilometerLog Pro.")
         }
     }
 
-    /// Prüft zuerst über `ProManager`, ob der Export freigeschaltet ist, und
-    /// zeigt andernfalls `PaywallView`. Die eigentliche Erzeugung der Datei
-    /// läuft ausschließlich über `FahrtenExporter` – hier findet keine
-    /// eigene Exportlogik statt.
     private func exportStarten(_ format: ExportFormat) {
-        guard proManager.pruefeExportBerechtigung() else {
+        if format == .datev, !proManager.pruefeDATEVBerechtigung() {
             zeigePaywall = true
             return
         }
         do {
+            let url: URL
             switch format {
             case .pdf:
-                try FahrtenExporter.exportierePDF(fahrten: jahresFahrten, fahrzeuge: fahrzeuge, jahr: ausgewaehltesJahr)
+                url = try FahrtExporter.exportierePDF(
+                    fahrten: jahresFahrten,
+                    fahrzeuge: fahrzeuge,
+                    auditEntries: jahresAuditEntries,
+                    jahr: ausgewaehltesJahr
+                )
             case .csv:
-                try FahrtenExporter.exportiereCSV(fahrten: jahresFahrten, fahrzeuge: fahrzeuge, jahr: ausgewaehltesJahr)
+                url = try FahrtExporter.exportiereCSV(
+                    fahrten: jahresFahrten,
+                    fahrzeuge: fahrzeuge,
+                    auditEntries: jahresAuditEntries,
+                    jahr: ausgewaehltesJahr
+                )
             case .datev:
-                try FahrtenExporter.exportiereDATEV(fahrten: jahresFahrten, fahrzeuge: fahrzeuge, jahr: ausgewaehltesJahr)
+                url = try FahrtExporter.exportiereDATEV(fahrten: jahresFahrten, fahrzeuge: fahrzeuge, jahr: ausgewaehltesJahr)
             }
+            exportDatei = ExportDatei(url: url)
         } catch {
             exportFehlerText = error.localizedDescription
             zeigeExportFehler = true
+        }
+    }
+
+    // MARK: - Automatisches Backup
+
+    /// Zeigt Status und Freigabe-Hinweis für das automatisch erzeugte
+    /// monatliche CSV-Backup (siehe `MonatsBackupManager`). KilometerLog
+    /// versendet die Datei nie selbst – der Nutzer entscheidet im
+    /// Share-Sheet über das Ziel.
+    private var backupSection: some View {
+        Section("Automatisches Monats-Backup") {
+            if let datum = monatsBackupManager.letztesBackupDatum, let url = monatsBackupManager.letztesBackupURL {
+                LabeledContent("Zuletzt erzeugt", value: datum.alsKurzesDatum)
+
+                if !monatsBackupManager.letztesBackupWurdeGeteilt {
+                    Label("Noch nicht an einem sicheren Ort gesichert", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
+
+                Button {
+                    backupDatei = ExportDatei(url: url)
+                } label: {
+                    Label("Backup sichern", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Backup sichern")
+                .accessibilityHint("Öffnet das Teilen-Menü, um das monatliche CSV-Backup an einem selbst gewählten Ort abzulegen, zum Beispiel in iCloud Drive oder der Dateien-App.")
+            } else {
+                Text("Es wurde noch kein automatisches Backup erstellt. Das erste vollständige Monats-Backup entsteht nach dem ersten Monatswechsel.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

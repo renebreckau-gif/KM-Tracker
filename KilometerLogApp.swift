@@ -21,6 +21,41 @@ struct KilometerLogApp: App {
         } catch {
             fatalError("SwiftData-ModelContainer konnte nicht erstellt werden: \(error)")
         }
+
+        // Lokale Kopie statt eines Zugriffs auf `self.modelContainer` aus
+        // der unten stehenden @escaping-Closure heraus – so bleibt die
+        // Erfassung unabhängig davon, dass wir uns noch innerhalb von
+        // init() befinden.
+        let container = modelContainer
+
+        // Zuverlässiger Grundmechanismus für das monatliche Backup: bei
+        // jedem App-Start prüfen, ob für den Vormonat bereits eines
+        // existiert (siehe MonatsBackupManager). `UebersichtView` wiederholt
+        // denselben, ungefährlichen Check zusätzlich beim Erscheinen, als
+        // Sicherheitsnetz für sehr lange Sitzungen ohne Neustart.
+        Self.pruefeMonatsBackup(container: container)
+
+        // Optionaler BGTaskScheduler-Weg: registriert nur, wenn die
+        // Info.plist-Kennung tatsächlich vorhanden ist (siehe
+        // MonatsBackupManager.erlaubteLaufzeitregeln), sonst folgenlos.
+        // Muss laut Apple-Vorgabe spätestens hier, vor Ende des App-Init,
+        // erfolgen.
+        MonatsBackupManager.registriereHintergrundaufgabeFallsMoeglich {
+            Self.pruefeMonatsBackup(container: container)
+        }
+        MonatsBackupManager.planeNaechsteHintergrundaufgabe()
+    }
+
+    private static func pruefeMonatsBackup(container: ModelContainer) {
+        let context = ModelContext(container)
+        let fahrten = (try? context.fetch(FetchDescriptor<Fahrt>())) ?? []
+        let fahrzeuge = (try? context.fetch(FetchDescriptor<Fahrzeug>())) ?? []
+        let auditEntries = (try? context.fetch(FetchDescriptor<AuditEntry>())) ?? []
+        MonatsBackupManager().pruefeUndErstelleBackupFallsNoetig(
+            fahrten: fahrten,
+            fahrzeuge: fahrzeuge,
+            auditEntries: auditEntries
+        )
     }
 
     var body: some Scene {

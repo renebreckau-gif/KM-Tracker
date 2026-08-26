@@ -2,22 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Dies ist KEIN vollständiges App-Info.plist, sondern genau die Einträge,
-  die für das GPS-Tracking (Utilities/TrackingManager.swift) zusätzlich
-  benötigt werden. Sobald das echte Xcode-Projekt existiert, müssen diese
-  Schlüssel in dessen Info.plist übernommen werden:
+  die für das GPS-Tracking (Utilities/TrackingManager.swift) und das
+  optionale monatliche Hintergrund-Backup (Utilities/MonatsBackupManager.swift)
+  zusätzlich benötigt werden. Sobald das echte Xcode-Projekt existiert,
+  müssen diese Schlüssel in dessen Info.plist übernommen werden:
 
   - Manuell in Xcode: Target -> Info -> Custom iOS Target Properties -> "+"
-    -> die drei Schlüssel unten per Hand anlegen (die deutschen Texte als
-    Wert einfügen).
-  - Per XcodeGen (project.yml): unter "info.properties" dieselben drei
-    Schlüssel eintragen, "UIBackgroundModes" als Array mit "location".
+    -> die Schlüssel unten per Hand anlegen (die deutschen Texte als Wert
+    einfügen).
+  - Per XcodeGen (project.yml): unter "info.properties" dieselben
+    Schlüssel eintragen.
 
-  Zusätzlich MUSS unter Target -> Signing & Capabilities -> "+ Capability"
-  -> "Background Modes" die Checkbox "Location updates" aktiviert werden
-  (das setzt effektiv denselben UIBackgroundModes-Eintrag, ist aber
-  zusätzlich für die Codesigning-Entitlements erforderlich). Ohne diese
-  Capability crasht die App beim Setzen von
+  Für den Standort MUSS zusätzlich unter Target -> Signing & Capabilities
+  -> "+ Capability" -> "Background Modes" die Checkbox "Location updates"
+  aktiviert werden (das setzt effektiv denselben UIBackgroundModes-Eintrag,
+  ist aber zusätzlich für die Codesigning-Entitlements erforderlich). Ohne
+  diese Capability crasht die App beim Setzen von
   `CLLocationManager.allowsBackgroundLocationUpdates = true` zur Laufzeit.
+
+  Für das optionale monatliche Backup MUSS zusätzlich unter derselben
+  "Background Modes"-Capability die Checkbox "Background fetch" aktiviert
+  werden. `MonatsBackupManager` prüft selbst aktiv, ob
+  `BGTaskSchedulerPermittedIdentifiers` die untenstehende Kennung enthält,
+  bevor es `BGTaskScheduler` verwendet – ist diese Konfiguration (noch)
+  nicht vorgenommen, führt die App den Backup-Check stattdessen zuverlässig
+  bei jedem App-Start aus, ganz ohne Hintergrundmodus.
 
   Es werden bewusst nur die für iOS 17+ tatsächlich benötigten Schlüssel
   aufgeführt (kein veraltetes NSLocationAlwaysUsageDescription aus der
@@ -34,6 +43,12 @@
     <key>UIBackgroundModes</key>
     <array>
         <string>location</string>
+        <string>fetch</string>
+    </array>
+
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.kilometerlog.monatsbackup</string>
     </array>
 </dict>
 </plist>
