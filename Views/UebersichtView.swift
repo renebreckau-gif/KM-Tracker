@@ -92,8 +92,20 @@ struct UebersichtView: View {
                 auditEntries: auditEntries
             )
         }
+        .task {
+            await proManager.aktualisiereStatus()
+        }
+        .onChange(of: ausgewaehltesJahr) { alterWert, neuerWert in
+            let aktuellesJahr = Calendar.current.component(.year, from: .now)
+            guard neuerWert != aktuellesJahr, !proManager.isFeatureAvailable(.jahresuebersicht) else { return }
+            // Ohne Pro bleibt nur das aktuelle Jahr wählbar (Feature
+            // `.jahresuebersicht`); die Auswahl anderer/vergangener Jahre
+            // wird zurückgesetzt und stattdessen die Paywall gezeigt.
+            ausgewaehltesJahr = alterWert
+            zeigePaywall = true
+        }
         .sheet(isPresented: $zeigePaywall) {
-            PaywallView()
+            PaywallView(proManager: proManager)
         }
         .sheet(item: $exportDatei) { datei in
             ShareSheet(dateiURLs: [datei.url])
@@ -134,6 +146,10 @@ struct UebersichtView: View {
 
     // MARK: - Jahreswerte
 
+    /// Ohne Pro bleibt nur das aktuelle Steuerjahr wählbar (Feature
+    /// `.jahresuebersicht`, siehe `onChange(of: ausgewaehltesJahr)` in
+    /// `body`); die Picker-Optionen selbst bleiben sichtbar, damit klar
+    /// bleibt, welche Jahre grundsätzlich Daten enthalten.
     private var jahresSection: some View {
         Section("Steuerjahr") {
             Picker("Jahr", selection: $ausgewaehltesJahr) {
@@ -141,7 +157,7 @@ struct UebersichtView: View {
                     Text(String(jahr)).tag(jahr)
                 }
             }
-            .accessibilityHint("Wählt das Jahr, für das Kennzahlen und Aufschlüsselungen angezeigt werden.")
+            .accessibilityHint("Wählt das Jahr, für das Kennzahlen und Aufschlüsselungen angezeigt werden. Andere Jahre als das aktuelle sind Teil von KilometerLog Pro.")
 
             HStack(spacing: 12) {
                 StatistikKarte(titel: "Kilometer", wert: "\(jahresWert.km.alsKilometerWert) km", systemImage: "road.lanes")
@@ -253,12 +269,14 @@ struct UebersichtView: View {
 
     // MARK: - Export
 
-    /// PDF und CSV sind Teil der steuerlichen Grundpflicht (ordnungsgemäßes
-    /// Fahrtenbuch) und bleiben frei nutzbar. Nur der DATEV-Export prüft
-    /// vorher über `ProManager`, ob er freigeschaltet ist, und zeigt
-    /// andernfalls `PaywallView`. Die eigentliche Erzeugung der Datei läuft
-    /// in jedem Fall ausschließlich über `FahrtExporter` – hier findet
-    /// keine eigene Exportlogik statt.
+    /// PDF-, CSV- und DATEV-Export sind Teil von KilometerLog Pro (Features
+    /// `.pdfExport`/`.csvExport`/`.datevExport`) und prüfen deshalb vorher
+    /// über `ProManager`, ob sie freigeschaltet sind – andernfalls
+    /// `PaywallView` statt eines Datenverlusts oder eines toten Buttons.
+    /// Die eigentliche Erzeugung der Datei läuft in jedem Fall
+    /// ausschließlich über `FahrtExporter` – hier findet keine eigene
+    /// Exportlogik statt. Die Kernfunktion (lokal gespeicherte Fahrten
+    /// erfassen und einsehen) bleibt davon unabhängig für alle nutzbar.
     private var exportSection: some View {
         Section("Exportieren") {
             Button {
@@ -267,7 +285,7 @@ struct UebersichtView: View {
                 Label("PDF exportieren", systemImage: "doc.richtext")
             }
             .accessibilityLabel("PDF exportieren")
-            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als PDF-Dokument und öffnet das Teilen-Menü.")
+            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als PDF-Dokument und öffnet das Teilen-Menü. Teil von KilometerLog Pro.")
 
             Button {
                 exportStarten(.csv)
@@ -275,7 +293,7 @@ struct UebersichtView: View {
                 Label("CSV exportieren", systemImage: "doc.text")
             }
             .accessibilityLabel("CSV exportieren")
-            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als CSV-Datei und öffnet das Teilen-Menü.")
+            .accessibilityHint("Exportiert die Fahrten des ausgewählten Jahres als CSV-Datei und öffnet das Teilen-Menü. Teil von KilometerLog Pro.")
 
             Button {
                 exportStarten(.datev)
@@ -288,7 +306,13 @@ struct UebersichtView: View {
     }
 
     private func exportStarten(_ format: ExportFormat) {
-        if format == .datev, !proManager.pruefeDATEVBerechtigung() {
+        let feature: ProFeature
+        switch format {
+        case .pdf: feature = .pdfExport
+        case .csv: feature = .csvExport
+        case .datev: feature = .datevExport
+        }
+        guard proManager.isFeatureAvailable(feature) else {
             zeigePaywall = true
             return
         }

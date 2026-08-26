@@ -33,6 +33,8 @@ struct EinstellungenView: View {
 
     @State private var neuesFahrzeug: Bool = false
     @State private var zuBearbeitendesFahrzeug: Fahrzeug?
+    @State private var proManager = ProManager()
+    @State private var zeigePaywall = false
 
     var body: some View {
         Form {
@@ -59,12 +61,22 @@ struct EinstellungenView: View {
                 }
 
                 Button {
-                    neuesFahrzeug = true
+                    fahrzeugHinzufuegenAnfordern()
                 } label: {
                     Label("Fahrzeug hinzufügen", systemImage: "plus")
                 }
                 .accessibilityLabel("Fahrzeug hinzufügen")
-                .accessibilityHint("Öffnet ein Formular, um ein neues Fahrzeug anzulegen.")
+                .accessibilityHint(
+                    proManager.isFeatureAvailable(.mehrereFahrzeuge) || fahrzeuge.isEmpty
+                        ? "Öffnet ein Formular, um ein neues Fahrzeug anzulegen."
+                        : "Öffnet KilometerLog Pro. Ohne Pro ist nur ein Fahrzeug nutzbar."
+                )
+
+                if !proManager.isFeatureAvailable(.mehrereFahrzeuge) && !fahrzeuge.isEmpty {
+                    Text("Weitere Fahrzeuge sind Teil von KilometerLog Pro.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
 
                 LabeledContent("Pkw", value: "\(FahrtkostenRechner.pkwSatzProKm.alsEuroBetrag)/km")
                 LabeledContent("Motorrad", value: "\(FahrtkostenRechner.motorradSatzProKm.alsEuroBetrag)/km")
@@ -107,6 +119,23 @@ struct EinstellungenView: View {
         }
         .sheet(item: $zuBearbeitendesFahrzeug) { fahrzeug in
             FahrzeugView(fahrzeug: fahrzeug)
+        }
+        .sheet(isPresented: $zeigePaywall) {
+            PaywallView(proManager: proManager)
+        }
+        .task {
+            await proManager.aktualisiereStatus()
+        }
+    }
+
+    /// Ohne Pro bleibt es bei genau einem Fahrzeug (Feature
+    /// `.mehrereFahrzeuge`); bestehende Fahrzeuge bleiben davon unberührt –
+    /// nur das Anlegen eines weiteren verlangt Pro.
+    private func fahrzeugHinzufuegenAnfordern() {
+        if proManager.isFeatureAvailable(.mehrereFahrzeuge) || fahrzeuge.isEmpty {
+            neuesFahrzeug = true
+        } else {
+            zeigePaywall = true
         }
     }
 }

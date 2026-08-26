@@ -11,9 +11,23 @@ struct FahrtenListView: View {
     @State private var suchtext = ""
     @State private var zeigeNeueFahrt = false
     @State private var zeigeAufzeichnung = false
+    @State private var proManager = ProManager()
+    @State private var zeigePaywall = false
 
     private var fahrzeugeNachId: [UUID: Fahrzeug] {
         Dictionary(uniqueKeysWithValues: fahrzeuge.map { ($0.id, $0) })
+    }
+
+    /// Grundlage für das Free-Limit „bis 10 Fahrten pro Monat“ – bestehende
+    /// Fahrten werden dabei nie gelöscht oder unsichtbar gemacht, nur das
+    /// Anlegen einer weiteren Fahrt im selben Kalendermonat verlangt Pro.
+    private var fahrtenDiesenMonat: Int {
+        let jetzt = Date.now
+        let kalender = Calendar.current
+        return fahrten.filter {
+            kalender.isDate($0.startDatum, equalTo: jetzt, toGranularity: .month)
+                && kalender.isDate($0.startDatum, equalTo: jetzt, toGranularity: .year)
+        }.count
     }
 
     private var gefilterteFahrten: [Fahrt] {
@@ -53,7 +67,7 @@ struct FahrtenListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    zeigeNeueFahrt = true
+                    neueFahrtAnfordern()
                 } label: {
                     Label("Neue Fahrt", systemImage: "plus")
                 }
@@ -61,9 +75,24 @@ struct FahrtenListView: View {
                 .accessibilityHint("Öffnet ein Formular, um eine Fahrt manuell zu erfassen.")
             }
         }
+        .safeAreaInset(edge: .top) {
+            if !proManager.isFeatureAvailable(.unbegrenzteFahrten) && fahrtenDiesenMonat >= ProManager.freiesLimitFahrtenProMonat {
+                Button {
+                    zeigePaywall = true
+                } label: {
+                    Label("Mit Pro unbegrenzt dokumentieren", systemImage: "star.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding([.horizontal, .top])
+                .accessibilityLabel("Mit Pro unbegrenzt dokumentieren")
+                .accessibilityHint("Das monatliche Free-Limit von \(ProManager.freiesLimitFahrtenProMonat) Fahrten ist erreicht. Öffnet KilometerLog Pro, um es aufzuheben.")
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             Button {
-                zeigeAufzeichnung = true
+                aufzeichnungAnfordern()
             } label: {
                 Label("Fahrt starten", systemImage: "location.fill")
                     .font(.headline)
@@ -80,6 +109,34 @@ struct FahrtenListView: View {
         }
         .sheet(isPresented: $zeigeAufzeichnung) {
             TrackingView()
+        }
+        .sheet(isPresented: $zeigePaywall) {
+            PaywallView(proManager: proManager)
+        }
+        .task {
+            await proManager.aktualisiereStatus()
+        }
+    }
+
+    /// Öffnet „Neue Fahrt“ nur, wenn das Free-Limit noch nicht erreicht ist
+    /// oder Pro aktiv ist – andernfalls die Paywall statt des Formulars.
+    /// Bestehende Fahrten sind davon nie betroffen.
+    private func neueFahrtAnfordern() {
+        if proManager.darfWeitereFahrtAnlegen(fahrtenDiesenMonat: fahrtenDiesenMonat) {
+            zeigeNeueFahrt = true
+        } else {
+            zeigePaywall = true
+        }
+    }
+
+    /// Dieselbe Free-Limit-Prüfung wie bei „Neue Fahrt“: Eine per GPS
+    /// aufgezeichnete Fahrt mündet ebenfalls in einer neuen, gespeicherten
+    /// Fahrt und zählt daher genauso gegen das monatliche Limit.
+    private func aufzeichnungAnfordern() {
+        if proManager.darfWeitereFahrtAnlegen(fahrtenDiesenMonat: fahrtenDiesenMonat) {
+            zeigeAufzeichnung = true
+        } else {
+            zeigePaywall = true
         }
     }
 }

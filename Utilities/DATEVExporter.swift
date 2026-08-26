@@ -39,11 +39,11 @@ enum DATEVExportFehler: LocalizedError {
 
 /// Separater Exporter für ein DATEV-orientiertes Zwischenformat.
 ///
-/// Der DATEV-Export ist laut Aufgabenstellung ein Pro-Feature: Die
-/// Berechtigungsprüfung (`ProManager.pruefeDATEVBerechtigung()`) erfolgt
-/// bewusst VOR dem Aufruf dieser Funktion in `UebersichtView`, nicht hier –
-/// so bleibt der Exporter selbst unabhängig testbar und die
-/// Berechtigungslogik an einer einzigen Stelle.
+/// Der DATEV-Export ist ein Pro-Feature: Die Berechtigungsprüfung
+/// (`ProManager.isFeatureAvailable(.datevExport)`) erfolgt bewusst VOR dem
+/// Aufruf dieser Funktion in `UebersichtView`, nicht hier – so bleibt der
+/// Exporter selbst unabhängig testbar und die Berechtigungslogik an einer
+/// einzigen Stelle.
 enum DATEVExporter {
     /// Im gewählten Zielformat unzulässig, da es keine mehrzeiligen Felder
     /// vorsieht.
