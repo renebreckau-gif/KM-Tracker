@@ -31,7 +31,7 @@ struct FahrtDetailView: View {
         Form {
             Section("Status") {
                 Label(
-                    fahrt.isLocked ? "Gespeichert und gesperrt" : "Noch nicht gesperrt",
+                    fahrt.isLocked ? "Gespeichert und geschützt" : "Noch nicht gesperrt",
                     systemImage: fahrt.isLocked ? "lock.fill" : "lock.open.fill"
                 )
                 .foregroundStyle(fahrt.isLocked ? .secondary : .orange)
@@ -39,6 +39,10 @@ struct FahrtDetailView: View {
                     Text("Änderungen an dieser Fahrt sind nur noch über den Audit-Prozess möglich, damit die Historie lückenlos nachvollziehbar bleibt.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    NavigationLink("Fahrt bearbeiten") {
+                        FahrtBearbeitenView(fahrt: fahrt)
+                    }
+                    .accessibilityHint("Öffnet die Bearbeitung dieser Fahrt über den Audit-Prozess.")
                 }
             }
 
@@ -47,17 +51,17 @@ struct FahrtDetailView: View {
                 if let endDatum = fahrt.endDatum, !Calendar.current.isDate(endDatum, inSameDayAs: fahrt.startDatum) {
                     LabeledContent("Ende", value: endDatum.alsKurzesDatum)
                 }
-                LabeledContent("Start", value: fahrt.startAdresse)
-                LabeledContent("Ziel", value: fahrt.zielAdresse)
-                LabeledContent("Kilometerstand Start", value: "\(fahrt.kmStandStart.alsKilometerWert) km")
-                LabeledContent("Kilometerstand Ende", value: "\(fahrt.kmStandEnde.alsKilometerWert) km")
-                LabeledContent("Gefahrene Strecke", value: "\(fahrt.km.alsKilometerWert) km")
+                LabeledContent("Start-Adresse", value: fahrt.startAdresse)
+                LabeledContent("Ziel-Adresse", value: fahrt.zielAdresse)
+                LabeledContent("Tachostand bei Fahrtbeginn", value: "\(fahrt.kmStandStart.alsKilometerWert) km")
+                LabeledContent("Tachostand bei Fahrtende", value: "\(fahrt.kmStandEnde.alsKilometerWert) km")
+                LabeledContent("Gefahrene Kilometer", value: "\(fahrt.km.alsKilometerWert) km")
                 LabeledContent("Erstattungsbetrag", value: betrag.alsEuroBetrag)
             }
 
             Section("Anlass") {
                 LabeledContent("Zweck", value: fahrt.zweck.anzeigeName)
-                LabeledContent("Konkreter Anlass", value: fahrt.zweckKonkret)
+                LabeledContent("Konkreter Zweck", value: fahrt.zweckKonkret)
                 if !fahrt.geschaeftspartner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     LabeledContent("Geschäftspartner", value: fahrt.geschaeftspartner)
                 }

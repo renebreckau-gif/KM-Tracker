@@ -103,98 +103,11 @@ struct EinstellungenView: View {
         }
         .navigationTitle("Einstellungen")
         .sheet(isPresented: $neuesFahrzeug) {
-            FahrzeugFormView(fahrzeug: nil)
+            FahrzeugView(fahrzeug: nil)
         }
         .sheet(item: $zuBearbeitendesFahrzeug) { fahrzeug in
-            FahrzeugFormView(fahrzeug: fahrzeug)
+            FahrzeugView(fahrzeug: fahrzeug)
         }
-    }
-}
-
-/// Formular zum Anlegen oder Bearbeiten eines Fahrzeugs.
-private struct FahrzeugFormView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-
-    /// `nil` bedeutet: neues Fahrzeug anlegen. Ansonsten wird dieses
-    /// bestehende Fahrzeug bearbeitet.
-    let fahrzeug: Fahrzeug?
-
-    @State private var name: String
-    @State private var kennzeichen: String
-    @State private var typ: FahrzeugTyp
-    @State private var fehlermeldung: String?
-
-    init(fahrzeug: Fahrzeug?) {
-        self.fahrzeug = fahrzeug
-        _name = State(initialValue: fahrzeug?.name ?? "")
-        _kennzeichen = State(initialValue: fahrzeug?.kennzeichen ?? "")
-        _typ = State(initialValue: fahrzeug?.typ ?? .pkw)
-    }
-
-    private var istGueltig: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !kennzeichen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Fahrzeug") {
-                    TextField("Name, z. B. „Firmenwagen“", text: $name)
-                    TextField("Kennzeichen", text: $kennzeichen)
-                        .textInputAutocapitalization(.characters)
-                    Picker("Fahrzeugtyp", selection: $typ) {
-                        ForEach(FahrzeugTyp.allCases) { typ in
-                            Text(typ.anzeigeName).tag(typ)
-                        }
-                    }
-                }
-
-                if let fehlermeldung {
-                    Section {
-                        Text(fehlermeldung)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
-            .navigationTitle(fahrzeug == nil ? "Fahrzeug hinzufügen" : "Fahrzeug bearbeiten")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .accessibilityLabel("Abbrechen")
-                        .accessibilityHint("Verwirft die Eingaben und schließt das Formular.")
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") { speichern() }
-                        .disabled(!istGueltig)
-                        .accessibilityLabel("Speichern")
-                        .accessibilityHint("Speichert das Fahrzeug.")
-                }
-            }
-        }
-    }
-
-    private func speichern() {
-        let getrimmterName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let getrimmtesKennzeichen = kennzeichen.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !getrimmterName.isEmpty, !getrimmtesKennzeichen.isEmpty else {
-            fehlermeldung = "Name und Kennzeichen dürfen nicht leer sein."
-            return
-        }
-
-        if let fahrzeug {
-            fahrzeug.name = getrimmterName
-            fahrzeug.kennzeichen = getrimmtesKennzeichen
-            fahrzeug.typ = typ
-        } else {
-            let neuesFahrzeug = Fahrzeug(name: getrimmterName, kennzeichen: getrimmtesKennzeichen, typ: typ)
-            modelContext.insert(neuesFahrzeug)
-        }
-
-        dismiss()
     }
 }
 
